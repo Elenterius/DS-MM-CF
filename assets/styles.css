@@ -1,0 +1,33 @@
+html, .theme-bg-dark {
+    background-color: #111111;
+}
+
+/* style overrides for plotly */
+
+.plotly .modebar {
+    top: 0 !important;
+    right: 0 !important;
+}
+
+.plotly:hover .modebar-group {
+    border-top-right-radius: 0.25rem !important;
+    border-bottom-left-radius: 0.25rem !important;
+}
+
+.plotly .modebar-group:first-child {
+    padding-left: 2px !important;
+}
+
+.plotly .modebar-group {
+    display: flex !important;
+    flex-direction: row !important;
+}
+
+.plotly .modebar-btn {
+    padding: 0.5rem !important;
+    height: auto !important;
+}
+
+.plotly .modebar-btn svg {
+    top: 0 !important
+}
