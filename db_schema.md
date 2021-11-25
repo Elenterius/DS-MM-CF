@@ -104,10 +104,6 @@ file_id | int | id of the file associated with the project
 dependency_id | int | project id of the dependency
 file_dependency_id | int | id of the file the project depends on
 
-> Note: atm the file id of the dependency is missing because CFCore API doesn't provide the dependency information of mod packs
-
-> Workaround: download the file and parse the mod list manifest to determine the file dependency
-
 # Views
 
 view: `dependant_downloads`

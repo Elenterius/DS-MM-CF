@@ -46,8 +46,8 @@ def store_project_info(db: Database, data: dict, timestamp: int):
 def store_authors(db: Database, data: dict, timestamp: int):
 	for author in data['authors']:
 		db['project_authors'].upsert(dict(
-			project_id=data['id'],  # "foreign key"
-			author_id=author['id'],  # "foreign key"
+			project_id=data['id'],
+			author_id=author['id'],
 			timestamp=timestamp  # if not up-to-date with newest project timestamp the member was removed
 		), ['project_id', 'author_id'])
 
@@ -60,7 +60,7 @@ def store_authors(db: Database, data: dict, timestamp: int):
 
 def store_download_count(db: Database, data: dict, timestamp: int):
 	db['project_downloads'].insert(dict(
-		project_id=data['id'],  # "foreign key"
+		project_id=data['id'],
 		download_count=int(data['downloadCount']),
 		timestamp=timestamp
 	))
@@ -74,8 +74,7 @@ def store_files(db: Database, data: dict, timestamp: int):
 def store_file(db: Database, data: dict, timestamp: int):
 	table: Table = db['file']
 	table.upsert(dict(
-		project_id=data['modId'], file_id=data['id'],
-		# unique pair ("primary key pair") -> both ids are needed to uniquely identified a file  (note the real PK of table is still id)
+		project_id=data['modId'], file_id=data['id'], # both ids are needed to uniquely identified a file
 		display_name=data['displayName'],
 		file_name=data['fileName'],
 		release_type=data['releaseType'],
@@ -128,7 +127,7 @@ def collect_data(mod_id: int, db_path: str, cf_api_key: str, max_file_length: fl
 	:param mod_id: CurseForge mod id
 	:param db_path: SQLite, PostgreSQL or MySQL
 	:param cf_api_key: CurseForge CoreAPI key
-	:param max_file_length: the max file size that is allowed to be downloaded
+	:param max_file_length: the max file size that is allowed to be downloaded (e.g. 4e7 = 40MB)
 	:param force: force the script to anyways collect the data even if the download count hasn't changed
 	:return:
 	"""
@@ -137,6 +136,9 @@ def collect_data(mod_id: int, db_path: str, cf_api_key: str, max_file_length: fl
 
 	# TODO: use transactions? e.g. transaction can be used through context manager, db changes will be thrown away when an exception occurs
 	db: Database = dataset.connect(db_path)
+
+	if 'dependant_downloads' not in db.views:
+		db_util.create_view_dependant_downloads(db)
 
 	response = api_helper.cf_api.get_mod(mod_id)  # TODO: proper exception handling
 	if response:
@@ -158,7 +160,7 @@ def collect_data(mod_id: int, db_path: str, cf_api_key: str, max_file_length: fl
 				else:
 					logger.warning("No Project Files Found")
 
-				collect_dependents_data(db, api_helper, project, timestamp, max_file_length)
+				_collect_dependents_data(db, api_helper, project, timestamp, max_file_length)
 			else:
 				logger.error(f"CFCore API Request Failed: {response.status_code}")
 		else:
@@ -169,7 +171,7 @@ def collect_data(mod_id: int, db_path: str, cf_api_key: str, max_file_length: fl
 	db.close()
 
 
-def collect_dependents_data(db: Database, api_helper: ApiHelper, dependency: dict, timestamp: int, max_file_length: float = 4e7):
+def _collect_dependents_data(db: Database, api_helper: ApiHelper, dependency: dict, timestamp: int, max_file_length: float = 4e7):
 	dependents_ids = api_helper.get_mod_dependents(dependency['id'], dependency['name'])
 	if not dependents_ids:
 		logger.warning("No Dependents Found")
