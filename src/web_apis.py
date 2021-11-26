@@ -26,6 +26,14 @@ class CFCoreApi:
 	def get_mod(self, mod_id: int) -> Response:
 		return requests.get(f'{self.base_url}/v1/mods/{mod_id}', headers=self._get_standard_headers(), timeout=5)
 
+	def get_mods(self, mod_ids: list[int]) -> Response:
+		headers = {
+			'Content-Type': 'application/json',
+			'Accept': 'application/json',
+			'x-api-key': self._api_key
+		}
+		return requests.post(f'{self.base_url}/v1/mods', headers=headers, json={"modIds": mod_ids}, timeout=5)
+
 	def find_mod(self, query: dict) -> Response:
 		return requests.get(f'{self.base_url}/v1/mods/search', headers=self._get_standard_headers(), params=query, timeout=5)
 

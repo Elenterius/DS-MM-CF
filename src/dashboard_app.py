@@ -24,7 +24,7 @@ app = dash.Dash(
 	external_stylesheets=["https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"]
 )
 
-dbPath = "sqlite:///db/mod_stats.db"  # path to SQLite, PostgreSQL or MySQL database created with the mod_data_collector.py script
+dbPath = "sqlite:///mod_stats.db"  # path to SQLite, PostgreSQL or MySQL database created with the mod_data_collector.py script
 
 
 def get_project_data(db_path: str, mod_slug: str):
@@ -347,4 +347,4 @@ def handle_sidebar_content(pathname: str):
 
 
 if __name__ == '__main__':
-	app.run_server(debug=True)
+	app.run_server(debug=False)

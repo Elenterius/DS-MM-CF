@@ -1,4 +1,5 @@
-# SQLite Database
+# Dataset DB
+> ATM the resulting database is created with the dataset library (https://dataset.readthedocs.io/en/latest/) which does not create a proper relational DB.
 
 # Tables
 
@@ -11,7 +12,6 @@ column | data type | desc |
 id | int | project id
 slug | str | project slug
 date_checked | int | when was the last time the project was checked for updates
-
 
 ---
 
@@ -101,8 +101,8 @@ column | data type | desc |
 ----- | ---------- | ---- |
 project_id | int | CurseForge project id
 file_id | int | id of the file associated with the project
-dependency_id | int | project id of the dependency
-file_dependency_id | int | id of the file the project depends on
+dependency_project_id | int | project id of the dependency
+dependency_file_id | int | id of the file the project depends on
 
 # Views
 
@@ -112,6 +112,6 @@ column | data type | desc |
 ----- | ---------- | ---- |
 project_id | int | CurseForge project id
 name | str | dependant name
-dependency_id | int | project id of the dependency
+dependency_project_id | int | project id of the dependency
 download_count | int | total download count of dependant including the dependency
 timestamp | int | when was the download count retrieved

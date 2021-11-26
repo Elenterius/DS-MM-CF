@@ -5,15 +5,15 @@ from dataset.util import ResultIter
 def create_view_dependant_downloads(db: Database):
 	db.query("""
 	CREATE VIEW dependant_downloads AS
-	SELECT project_id, name, dependency_id, SUM(download_count) AS download_count, timestamp
+	SELECT project_id, name, dependency_project_id, SUM(download_count) AS download_count, timestamp
 	FROM (
-		SELECT b.project_id, c.name, b.file_id, a.dependency_id, download_count, timestamp
+		SELECT b.project_id, c.name, b.file_id, a.dependency_project_id, download_count, timestamp
 		FROM file_downloads b
 			JOIN file_dependencies a ON b.project_id = a.project_id AND b.file_id = a.file_id
 			JOIN project c ON b.project_id = c.id
-		GROUP BY b.project_id, b.file_id, a.dependency_id, timestamp
+		GROUP BY b.project_id, b.file_id, a.dependency_project_id, timestamp
 	)
-	GROUP BY timestamp, dependency_id, project_id
+	GROUP BY timestamp, dependency_project_id, project_id
 	""")
 
 
@@ -35,11 +35,11 @@ def get_project_download_count_latest(db: Database, mod_id: int):
 
 def get_project_downloads_by_composition(db: Database, mod_id: int):
 	return db.query(f"""
-	SELECT a.dependency_id AS project_id, b.download_count AS total_download_count, SUM(a.download_count) AS dependant_download_count, b.download_count - SUM(a.download_count) AS direct_download_count, b.timestamp
+	SELECT a.dependency_project_id AS project_id, b.download_count AS total_download_count, SUM(a.download_count) AS dependant_download_count, b.download_count - SUM(a.download_count) AS direct_download_count, b.timestamp
 		FROM
-			(dependant_downloads a INNER JOIN project_downloads b ON a.dependency_id = b.project_id AND a.timestamp = b.timestamp)
-		WHERE a.dependency_id = {mod_id}
-		GROUP BY a.dependency_id, a.timestamp;
+			(dependant_downloads a INNER JOIN project_downloads b ON a.dependency_project_id = b.project_id AND a.timestamp = b.timestamp)
+		WHERE a.dependency_project_id = {mod_id}
+		GROUP BY a.dependency_project_id, a.timestamp;
 	""")
 
 
@@ -50,14 +50,14 @@ def get_project_downloads_by_origin(db: Database, mod_id: int):
 		(
 		SELECT project_id, name, SUM(download_count) AS download_count, timestamp
 			FROM dependant_downloads
-			WHERE dependency_id = {mod_id}
-			GROUP BY dependency_id, project_id, timestamp
+			WHERE dependency_project_id = {mod_id}
+			GROUP BY dependency_project_id, project_id, timestamp
 		UNION ALL
-		SELECT a.dependency_id AS project_id, "CurseForge Mod Page" AS name, b.download_count - SUM(a.download_count) AS download_count, b.timestamp
+		SELECT a.dependency_project_id AS project_id, "CurseForge Mod Page" AS name, b.download_count - SUM(a.download_count) AS download_count, b.timestamp
 			FROM dependant_downloads a
-				INNER JOIN project_downloads b ON a.dependency_id = b.project_id AND a.timestamp = b.timestamp
-			WHERE a.dependency_id = {mod_id}
-			GROUP BY a.dependency_id, a.timestamp
+				INNER JOIN project_downloads b ON a.dependency_project_id = b.project_id AND a.timestamp = b.timestamp
+			WHERE a.dependency_project_id = {mod_id}
+			GROUP BY a.dependency_project_id, a.timestamp
 		)
 	""")
 
@@ -95,8 +95,8 @@ def get_project_dependents(db: Database, mod_id: int):
 	SELECT a.id AS project_id, a.name
 		FROM
 			(project a INNER JOIN file_dependencies b ON a.id = b.project_id)
-		WHERE dependency_id = {mod_id}
-		GROUP BY a.id, dependency_id;
+		WHERE dependency_project_id = {mod_id}
+		GROUP BY a.id, dependency_project_id;
 	""")
 
 
@@ -104,6 +104,6 @@ def get_dependant_downloads_total(db: Database, mod_id: int):
 	return db.query(f"""
 	SELECT project_id, name, SUM(download_count) AS download_count, timestamp
 		FROM dependant_downloads
-		WHERE dependency_id = {mod_id}
-		GROUP BY dependency_id, project_id, timestamp;
+		WHERE dependency_project_id = {mod_id}
+		GROUP BY dependency_project_id, project_id, timestamp;
 	""")

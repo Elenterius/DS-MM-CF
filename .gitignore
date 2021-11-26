@@ -1,8 +1,13 @@
+#
+*.db
+*.db-shm
+*.db-wal
+
 # IDEA
 .idea/
 out/
 
-## Python Stuff 
+## Python Stuff
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
