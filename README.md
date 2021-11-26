@@ -33,6 +33,7 @@ mod_data_collector.collect_data(logger, save_handler, dependency_resolver, api_h
 https://github.com/Elenterius/DS-MM-CF/blob/main/db_schema.md
 
 ## Dashboard
-<img alt="screenshot of the dashboard web app" src="dashboard_screenshot.png" title="Dashboard Screenshot" width="70%" align="right"/>
 To view the data you can run `python dashboard_app.py` for a simple dashboard web app (built with plotly dash and tailwindcss)
 which displays some simple download stats.
+
+<img alt="screenshot of the dashboard web app" src="dashboard_screenshot.png" title="Dashboard Screenshot" width="80%"/>
