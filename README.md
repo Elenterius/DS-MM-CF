@@ -1,12 +1,17 @@
 # DS-MM-CF
-Get Download Stats for Minecraft Mods hosted on CurseForge
+Get better Download Stats for Minecraft Mods hosted on CurseForge.
+
+When you have a mod on CurseForge (CF) you will eventually realize that the download stats only show you the total download count. You won't know how many people directly downloaded your mod from the website and how many downloads are from modpacks.
+
+This script utilizes the `CFCore API` and `ModpackIndex API` in order to figure out which modpacks include your mod. 
+Then Each modpack file is checked to determine the download compositon of all of your public available mod files (archived files can't be querried using the CFCore api).
 
 ## How to get the Data
 > You need a CurseForge Core API Key!
 
 You can get the API key from https://core.curseforge.com/. 
 Just login with a Google account and name your organisation with an arbitrary name, and you will automatically
-get an API Key that can query mod and file data from the CFCoreAPI.
+get an API Key that can query mod and file data from the CFCore API.
 
 ### Example
 ```Python
