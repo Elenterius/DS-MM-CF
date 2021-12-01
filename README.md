@@ -6,6 +6,12 @@ When you have a mod on CurseForge (CF) you will eventually realize that the down
 This script utilizes the `CFCore API` and `ModpackIndex API` in order to figure out which modpacks include your mod. 
 Then Each modpack file is checked to determine the download compositon of all of your public available mod files (archived files can't be querried using the CFCore api).
 
+## Warning! ATM the Donwload Count is not in sync with the CF website
+Currently the donwload count returned by the `CFCore API` is only updated if there are any changes detected to the mod info. That means the resulting download stats are a bit skewed.
+
+**Workaround:**
+You can update the description of your mod to manually trigger the update of the download count.
+
 ## How to get the Data
 > You need a CurseForge Core API Key!
 
