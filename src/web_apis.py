@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import requests
 from requests import Response
@@ -26,7 +26,7 @@ class CFCoreApi:
 	def get_mod(self, mod_id: int) -> Response:
 		return requests.get(f'{self.base_url}/v1/mods/{mod_id}', headers=self._get_standard_headers(), timeout=5)
 
-	def get_mods(self, mod_ids: list[int]) -> Response:
+	def get_mods(self, mod_ids: List[int]) -> Response:
 		headers = {
 			'Content-Type': 'application/json',
 			'Accept': 'application/json',
@@ -49,10 +49,24 @@ class CFCoreApi:
 		return requests.get(f'{self.base_url}/v1/mods/{mod_id}/description', headers=self._get_standard_headers(), timeout=5)
 
 	def get_mod_file(self, mod_id: int, file_id: int) -> Response:
+		"""
+		Get one mod files
+		"""
 		return requests.get(f'{self.base_url}/v1/mods/{mod_id}/files/{file_id}', headers=self._get_standard_headers(), timeout=5)
 
 	def get_mod_files(self, mod_id: int) -> Response:
+		"""
+		Get all files of the given mod
+		"""
 		return requests.get(f'{self.base_url}/v1/mods/{mod_id}/files', headers=self._get_standard_headers(), timeout=5)
+
+	def get_files(self, file_ids: List[int]) -> Response:
+		headers = {
+			'Content-Type': 'application/json',
+			'Accept': 'application/json',
+			'x-api-key': self._api_key
+		}
+		return requests.post(f'{self.base_url}/v1/mods/files', headers=headers, json={"fileIds": file_ids}, timeout=5)
 
 
 class ModpackIndexApi:
@@ -77,7 +91,7 @@ class ModpackIndexApi:
 	def find_mods_by_name(self, name: str) -> Response:
 		query = {
 			'name': name,
-			'limit': '100',	'page': '1'
+			'limit': '100', 'page': '1'
 		}
 		return self.find_mods(query)
 
@@ -103,7 +117,7 @@ class ApiHelper:
 		self.cf_api = CFCoreApi(cf_api_key)
 		self.mpi_api = ModpackIndexApi()
 
-	def get_cf_modpack_ids(self, mpi_mod_id) -> Optional[list[int]]:
+	def get_cf_modpack_ids(self, mpi_mod_id) -> Optional[List[int]]:
 		response = self.mpi_api.get_mod_dependents(mpi_mod_id)  # TODO: handle pagination
 		if response:
 			result = response.json()
@@ -126,7 +140,7 @@ class ApiHelper:
 						return mod['id']
 		return None
 
-	def get_mod_dependents(self, cf_mod_id: int, cf_mod_name: str) -> Optional[list[int]]:
+	def get_mod_dependents(self, cf_mod_id: int, cf_mod_name: str) -> Optional[List[int]]:
 		mpi_mod_id = self.get_mpi_mod_id(cf_mod_id, cf_mod_name)
 		if mpi_mod_id:
 			return self.get_cf_modpack_ids(mpi_mod_id)

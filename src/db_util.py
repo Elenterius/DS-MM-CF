@@ -19,9 +19,8 @@ def create_view_dependant_downloads(db: Database):
 
 def get_tracked_projects_with_logo(db: Database):
 	return db.query(f"""
-		SELECT a.*, b.logo
-			FROM tracked_project a
-			JOIN project b ON a.id = b.id
+		SELECT slug, type, logo, date_collected
+		FROM project
 	""")
 
 

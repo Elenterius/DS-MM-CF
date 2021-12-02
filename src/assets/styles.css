@@ -2,7 +2,25 @@ html, .theme-bg-dark {
     background-color: #111111;
 }
 
-/* style overrides for plotly */
+/**** style overrides for plotly ****/
+
+.dash-dropdown .Select-control,
+.dash-dropdown .Select-menu-outer {
+    background-color: #111111;
+    border-color: #111111;
+}
+
+.dash-dropdown .is-open .Select-control,
+.dash-dropdown .is-open .Select-menu-outer {
+    border-color: #636970;
+}
+
+.dash-dropdown .Select-control .Select-value-label {
+    color: #9f9f9f !important;
+}
+
+
+/* modebar */
 
 .plotly .modebar {
     top: 0 !important;

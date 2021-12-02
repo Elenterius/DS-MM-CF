@@ -1,6 +1,7 @@
 import abc
 from datetime import datetime
 import dataset
+from typing import List
 
 
 def parse_datetime_string(datetime_str: str) -> float:
@@ -10,9 +11,12 @@ def parse_datetime_string(datetime_str: str) -> float:
 
 class SaveHandlerInterface(metaclass=abc.ABCMeta):
 
-	@classmethod
-	def __subclasshook__(cls, subclass):
-		return hasattr(subclass, 'save_project_info') and callable(subclass.save_project_info) or NotImplemented
+	def __enter__(self):
+		return self
+
+	@abc.abstractmethod
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		raise NotImplementedError
 
 	@abc.abstractmethod
 	def is_saved_project_outdated(self, project_id: int, project_date_modified: str, project_download_count: int) -> bool:
@@ -26,7 +30,7 @@ class SaveHandlerInterface(metaclass=abc.ABCMeta):
 		raise NotImplementedError
 
 	@abc.abstractmethod
-	def save_project_info(self, p_id: int, slug: str, name: str, p_type: str, mc_versions: list[str], summary: str, logo_url: str, date_created: str, date_modified: str):
+	def save_project_info(self, p_id: int, slug: str, name: str, p_type: str, mc_versions: List[str], summary: str, logo_url: str, date_created: str, date_modified: str):
 		"""
 		Save Project Info
 		:param p_id:
@@ -43,7 +47,7 @@ class SaveHandlerInterface(metaclass=abc.ABCMeta):
 		raise NotImplementedError
 
 	@abc.abstractmethod
-	def save_project_authors(self, project_id: int, authors: list[dict]):
+	def save_project_authors(self, project_id: int, authors: List[dict]):
 		"""
 		Save Project Authors
 		:param project_id:
@@ -63,7 +67,7 @@ class SaveHandlerInterface(metaclass=abc.ABCMeta):
 		raise NotImplementedError
 
 	@abc.abstractmethod
-	def save_file_info(self, project_id: int, file_id: int, release_type: str, mc_versions: list[str], display_name: str, file_name: str, date_created: int, file_length: int):
+	def save_file_info(self, project_id: int, file_id: int, release_type: str, mc_versions: List[str], display_name: str, file_name: str, date_created: int, file_length: int):
 		"""
 		Save Project Downloads
 		:param project_id:
@@ -118,6 +122,9 @@ class DatasetSaveHandler(SaveHandlerInterface):
 		self.db = dataset.connect(db_url)
 		self._setup_db()
 
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		self.db.close()
+
 	def _setup_db(self):
 		import db_util
 		if 'dependant_downloads' not in self.db.views:
@@ -136,7 +143,7 @@ class DatasetSaveHandler(SaveHandlerInterface):
 
 		return True
 
-	def save_project_info(self, p_id: int, slug: str, name: str, p_type: str, mc_versions: list[str], summary: str, logo_url: str, date_created: str, date_modified: str):
+	def save_project_info(self, p_id: int, slug: str, name: str, p_type: str, mc_versions: List[str], summary: str, logo_url: str, date_created: str, date_modified: str):
 		self.db['project'].upsert(dict(
 			id=p_id,  # primary key
 			slug=slug, name=name,
@@ -149,7 +156,7 @@ class DatasetSaveHandler(SaveHandlerInterface):
 			date_collected=self.timestamp  # when was the mod info collected/updated
 		), ['id'])
 
-	def save_project_authors(self, project_id: int, authors: list[dict]):
+	def save_project_authors(self, project_id: int, authors: List[dict]):
 		for author in authors:
 			self.db['project_authors'].upsert(dict(
 				project_id=project_id,
@@ -170,7 +177,7 @@ class DatasetSaveHandler(SaveHandlerInterface):
 			timestamp=self.timestamp
 		))
 
-	def save_file_info(self, project_id: int, file_id: int, release_type: str, mc_versions: list[str], display_name: str, file_name: str, date_created: int, file_length: int):
+	def save_file_info(self, project_id: int, file_id: int, release_type: str, mc_versions: List[str], display_name: str, file_name: str, date_created: int, file_length: int):
 		self.db['file'].upsert(dict(
 			project_id=project_id, file_id=file_id,  # both ids are needed to uniquely identified a file
 			display_name=display_name, file_name=file_name,

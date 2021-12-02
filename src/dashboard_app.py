@@ -6,25 +6,18 @@
 import time
 from datetime import datetime
 from datetime import timedelta
+from typing import List
 
 import dash
 import dataset
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, State
 from dataset import Database
 from plotly.subplots import make_subplots
 
 import db_util
-
-app = dash.Dash(
-	# include the whole tailwindcss build via CDN, while it has downsides (https://tailwindcss.com/docs/installation#using-tailwind-via-cdn)
-	# it allows very easy styling of the dash html/dcc elements via the className parameter
-	external_stylesheets=["https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"]
-)
-
-dbPath = "sqlite:///mod_stats.db"  # path to SQLite, PostgreSQL or MySQL database created with the mod_data_collector.py script
 
 
 def get_project_data(db_path: str, mod_slug: str):
@@ -39,12 +32,12 @@ def get_project_data(db_path: str, mod_slug: str):
 	authors = db_util.get_project_authors(db, mod_id)
 	authors = [author['name'] for author in authors]
 
-	downloads_by_file = pd.DataFrame.from_dict(db_util.get_project_downloads_by_file(db, mod_id))
+	downloads_by_file: pd.DataFrame = pd.DataFrame.from_dict(db_util.get_project_downloads_by_file(db, mod_id))
 	if len(downloads_by_file) > 0:
 		downloads_by_file['timestamp'] = pd.to_datetime(downloads_by_file['timestamp'], unit='s')
 
 	downloads_by_origin = get_project_downloads_by_origin(db, mod_id)
-	downloads_composition = pd.DataFrame.from_dict(db_util.get_project_downloads_by_composition(db, mod_id))
+	downloads_composition: pd.DataFrame = pd.DataFrame.from_dict(db_util.get_project_downloads_by_composition(db, mod_id))
 
 	db.close()
 	return project, authors, downloads_by_file, downloads_composition, downloads_by_origin
@@ -94,19 +87,19 @@ def get_percentage(a, b):
 
 
 def create_project_downloads_by_file_figure(df: pd.DataFrame):
-	max_file_id = df.iloc[df['download_count'].idxmax()]['file_id']
-	df_max = df[df['file_id'] == max_file_id]
-	df_other = df[df['file_id'] != max_file_id]
+	mean = df['download_count'].mean()
+	df_upper = df[df['download_count'] >= mean]
+	df_lower = df[df['download_count'] < mean]
 
 	fig = make_subplots(rows=2, cols=1)
 	fig1 = px.line(
-		df_max, x="timestamp", y='download_count',
+		df_upper, x="timestamp", y='download_count',
 		color='file_name',
 		labels={'download_count': 'Download Count', 'timestamp': 'Datetime', 'file_name': 'File'},
 		hover_name='file_name', markers=True,
 	)
 	fig2 = px.line(
-		df_other, x="timestamp", y='download_count',
+		df_lower, x="timestamp", y='download_count',
 		color='file_name',
 		labels={'download_count': 'Download Count', 'timestamp': 'Datetime', 'file_name': 'File'},
 		hover_name='file_name', markers=True,
@@ -146,41 +139,52 @@ def create_project_downloads_figure(df: pd.Series):
 	fig = px.pie(
 		df,
 		values=[df['dependant_download_count'], df['direct_download_count']],
-		title=strformat_timestamp(df['timestamp']),
 		labels={'value': 'Download Count'},
 		names=['Dependents', 'CurseForge Mod Page'],
 		template='plotly_dark'
 	)
-	fig.update_layout(legend=dict(
-		orientation="h", yanchor="top", xanchor="center", y=1.2, x=0.5
-	))
+	fig.update_layout(
+		title_text=strformat_timestamp(df['timestamp']), title_x=0.5, title_y=0.075,
+		legend=dict(orientation="h", yanchor="top", xanchor="center", y=1.2, x=0.5)
+	)
 	fig.update_layout({'plot_bgcolor': 'rgba(0, 0, 0, 0)', 'paper_bgcolor': 'rgba(0, 0, 0, 0)'})
 	return fig
 
 
-def create_graph(_id, figure):
-	return dcc.Graph(id=_id, config={'displaylogo': False}, figure=figure, className="mt-2 rounded theme-bg-dark shadow-lg")
-
-
-def create_projects_list(projects: list):
-	list_items = []
+def create_projects_list(projects: List):
+	mods = []
+	modpacks = []
 	for project in projects:
 		li = html.Li([
 			html.Img(src=project['logo'], className="w-12 h-12 rounded"),
 			html.Div([
 				dcc.Link([f"{project['slug']}".title()], href=f"/data/{project['slug']}", className="underline text-purple-400 hover:text-purple-600"),
-				html.Small([f"last check: {strformat_timestamp(project['date_checked'])}"])
+				html.Div([
+					"last check: ", html.Abbr([get_data_time_diff(project['date_collected'])], title=strformat_timestamp(project['date_collected'])), " ago"
+				], className="text-sm")
 			], className="flex flex-col"),
 		], className="flex flex-row gap-2")
-		list_items.append(li)
+		if project['type'] == 'mc-mods':
+			mods.append(li)
+		else:
+			modpacks.append(li)
 
-	return html.Ul(list_items, className="flex flex-wrap gap-4 flex-none mt-2")
+	return html.Div([
+		html.Div([
+			html.H3(["Mods"], className="mb-2"),
+			html.Ul(mods, className="flex flex-wrap gap-4")
+		]),
+		html.Details([
+			html.Summary([f"Modpacks/Other ({len(modpacks)})"], className="focus:outline-none mb-2"),
+			html.Ul(modpacks, className="flex flex-wrap gap-4 cursor-auto")
+		], className="cursor-pointer")
+	], className="flex flex-col gap-4 mt-2")
 
 
 def create_tracked_projects_content():
 	return html.Div([
 		html.H2(["Tracked Projects"], className="text-xl"),
-		create_projects_list(tracked_projects)
+		create_projects_list(get_tracked_projects(dbUrl))
 	], className="bg-gray-600 bg-opacity-50 p-3 rounded shadow-lg")
 
 
@@ -192,26 +196,13 @@ def create_error_element(error_code: int, error_msg: str):
 	], className="p-3 bg-gray-600 bg-opacity-50 rounded flex flex-col items-center")
 
 
-tracked_projects = get_tracked_projects(dbPath)
-
-sidebar = html.Div([
-	html.Div([
-		html.H1("MC Mod CF Stats", className="font-black text-2xl"),
-		html.Div(id='search-result', className="flex flex-col gap-2 hidden"),
-	], className="flex flex-col gap-2 bg-gray-600 bg-opacity-50 p-3 rounded shadow-lg"),
-	html.Nav([
-		html.H1(["Nav"], className="text-xl"),
-		dcc.Link(["Home"], href="/", className="text-purple-400 hover:text-purple-600"),
-		# " | ",
-		# dcc.Link(["Data"], href="/", className="text-purple-400 hover:text-purple-600"),
-	]),
-	html.Div([], id="sidebar-content"),
-], className="flex flex-col gap-4")
+def create_graph(_id, figure):
+	return dcc.Graph(id=_id, config={'displaylogo': False}, figure=figure, className="mt-2 rounded theme-bg-dark shadow-lg")
 
 
 def create_project_content(mod_name: str):
 	try:
-		project_data, authors, downloads_by_file, downloads_composition, downloads_by_origin = get_project_data(dbPath, mod_name)
+		project_data, authors, downloads_by_file, downloads_composition, downloads_by_origin = get_project_data(dbUrl, mod_name)
 	except TypeError:
 		return create_error_element(404, "Data Not Found")
 	except KeyError:
@@ -221,16 +212,18 @@ def create_project_content(mod_name: str):
 
 	authors = ", ".join(authors)
 	project_url = f"https://www.curseforge.com/minecraft/{project_data['type']}/{project_data['slug']}"
+	dropdown_options = []
 
 	if len(downloads_composition) > 0:
 		latest_download_composition = downloads_composition[downloads_composition['timestamp'] == latest_timestamp].iloc[0]
 		total_downloads = latest_download_composition['total_download_count']
 		direct_downloads = latest_download_composition['direct_download_count']
 		dependant_download_count = latest_download_composition['dependant_download_count']
+		dropdown_options = [{'label': strformat_timestamp(timestamp), 'value': timestamp} for timestamp in downloads_composition['timestamp']]
 	else:
 		latest_download_composition = downloads_composition
-		total_downloads = 1
-		direct_downloads = 1
+		total_downloads = downloads_by_file.groupby('timestamp').sum().sort_values(by='timestamp', ascending=False).iloc[0]['download_count']
+		direct_downloads = 0
 		dependant_download_count = 0
 
 	cf_points = int(total_downloads * (100 / 5650))
@@ -238,14 +231,18 @@ def create_project_content(mod_name: str):
 
 	try:
 		composition_graph = create_graph('downloads_composition', create_project_downloads_figure(latest_download_composition))
-		file_graph = create_graph('downloads_by_file', create_project_downloads_by_file_figure(downloads_by_file))
-		origin_graph = create_graph('downloads_origin', create_downloads_by_origin_figure(downloads_by_origin))
-	except KeyError as error:
-		# composition_graph = create_error_element(500, "Internal Error")
-		# origin_graph = create_error_element(500, "Internal Error")
-		# file_graph = create_error_element(500, "Internal Error")
+	except KeyError:
+		composition_graph = create_error_element(404, "Data Not Found")
 
-		return create_error_element(500, "Internal Error")
+	try:
+		file_graph = create_graph('downloads_by_file', create_project_downloads_by_file_figure(downloads_by_file))
+	except KeyError:
+		file_graph = create_error_element(404, "Data Not Found")
+
+	try:
+		origin_graph = create_graph('downloads_origin', create_downloads_by_origin_figure(downloads_by_origin))
+	except KeyError:
+		origin_graph = create_error_element(404, "Data Not Found")
 
 	return html.Div([
 		html.Div([
@@ -254,7 +251,7 @@ def create_project_content(mod_name: str):
 				html.Div([
 					html.H1([project_data["name"]], className="text-4xl"),
 					html.Div([
-						"data updated: ", html.Abbr([get_data_time_diff(latest_timestamp)], title=strformat_timestamp(latest_timestamp)), " ago"
+						"updated: ", html.Abbr([get_data_time_diff(latest_timestamp)], title=strformat_timestamp(latest_timestamp)), " ago"
 					], className="text-sm")
 				], className="flex flex-col")
 			], className="flex flex-row gap-2"),
@@ -302,24 +299,83 @@ def create_project_content(mod_name: str):
 				file_graph,
 			], className="flex-auto w-full md:w-2/3 lg:w-3/5 xl:w-1/2"),
 			html.Div([
-				html.H2(f"Downloads Composition", className="text-xl"),
+				html.H2(f"Total Downloads Composition", className="text-xl mb-2"),
+				dcc.Dropdown(
+					id='timestamp-dropdown',
+					options=dropdown_options,
+					value=latest_timestamp,
+					className="cursor-pointer"
+				),
 				composition_graph,
 			], className="flex-auto w-full md:w-1/2 lg:w-2/5 xl:w-1/3"),
 			html.Div([
-				html.H2(f"Downloads by Origin", className="text-xl"),
+				html.H2(f"Total Downloads by Origin", className="text-xl"),
 				origin_graph,
 			], className="flex-auto w-full md:w-2/3 lg:w-3/5 xl:w-1/2")
 		], className="flex flex-row flex-wrap items-start gap-4 p-3 bg-gray-600 bg-opacity-50 rounded")
 	], className="flex flex-col gap-4")
 
 
-app.layout = html.Div([
-	dcc.Location(id="url"),
-	html.Div([
-		html.Div([sidebar], className="flex-grow md:flex-none md:flex-shrink md:w-1/3 lg:w-1/4"),
-		html.Div(id="page-content", className="flex-1 overflow-y-auto"),
-	], className="flex flex-col lg:flex-row gap-4 p-4 pb-0")
-], className="h-full text-white overflow-y-auto")
+def create_sidebar_content():
+	return html.Div([
+		html.Div([
+			html.H1("MC Mod CF Stats", className="font-black text-2xl"),
+			html.Div(id='search-result', className="flex flex-col gap-2 hidden"),
+		], className="flex flex-col gap-2 bg-gray-600 bg-opacity-50 p-3 rounded shadow-lg"),
+		html.Nav([
+			html.H1(["Nav"], className="text-xl"),
+			dcc.Link(["Home"], href="/", className="text-purple-400 hover:text-purple-600"),
+			# " | ",
+			# dcc.Link(["Data"], href="/", className="text-purple-400 hover:text-purple-600"),
+		]),
+		html.Div([], id="sidebar-content"),
+	], className="flex flex-col gap-4")
+
+
+def create_app_layout():
+	return html.Div([
+		dcc.Location(id="url"),
+		html.Div([
+			html.Div([create_sidebar_content()], className="flex-grow md:flex-none md:flex-shrink md:w-1/3 lg:w-1/5"),
+			html.Div(id="page-content", className="flex-1 overflow-y-auto"),
+		], className="flex flex-col md:flex-row gap-4 p-4 pb-0")
+	], className="h-full text-white")
+
+
+app = dash.Dash(
+	# include the whole tailwindcss build via CDN, while it has downsides (https://tailwindcss.com/docs/installation#using-tailwind-via-cdn)
+	# it allows very easy styling of the dash html/dcc elements via the className parameter
+	external_stylesheets=["https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css"],
+	suppress_callback_exceptions=True
+)
+
+dbUrl = "sqlite:///mod_stats.db"  # url to the database created with the DatasetSaveHandler (supports SQLite, PostgreSQL or MySQL)
+
+app.layout = create_app_layout()
+
+
+@app.callback(
+	Output('downloads_composition', 'figure'),
+	Input('timestamp-dropdown', 'value'),
+	State("url", "pathname"),
+	State('downloads_composition', 'figure')
+)
+def update_output(timestamp, pathname: str, prev_figure):
+
+	if not timestamp:
+		return prev_figure
+
+	db: Database = dataset.connect(dbUrl)
+	project = db['project'].find_one(slug=pathname.split("/")[-1])
+
+	if not project:
+		return prev_figure
+
+	downloads_composition = pd.DataFrame.from_dict(db_util.get_project_downloads_by_composition(db, project['id']))
+	latest_download_composition = downloads_composition[downloads_composition['timestamp'] == timestamp].iloc[0]
+
+	db.close()
+	return create_project_downloads_figure(latest_download_composition)
 
 
 @app.callback(

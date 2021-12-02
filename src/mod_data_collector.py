@@ -1,8 +1,9 @@
 import logging
+import time
 
 import requests
 
-from dependency_resolver import DependencyResolverInterface, Dependency
+from dependency_resolver import DependencyResolverInterface, FileIdentifier
 from save_handlers import SaveHandlerInterface
 from web_apis import ApiHelper
 
@@ -56,7 +57,7 @@ def store_file_download_count(save_handler: SaveHandlerInterface, data: dict):
 	save_handler.save_file_download_count(project_id=data['modId'], file_id=data['id'], download_count=int(data['downloadCount']))
 
 
-def store_file_dependency(save_handler: SaveHandlerInterface, data: dict, dependency: Dependency):
+def store_file_dependency(save_handler: SaveHandlerInterface, data: dict, dependency: FileIdentifier):
 	save_handler.save_file_dependency(
 		project_id=data['modId'], file_id=data['id'],
 		dependency_project_id=dependency.project_id, dependency_file_id=dependency.file_id
@@ -67,14 +68,13 @@ def is_stored_project_outdated(save_handler: SaveHandlerInterface, data: dict):
 	return save_handler.is_saved_project_outdated(data['id'], data['dateModified'], int(data['downloadCount']))
 
 
-def collect_data(logger: logging.Logger, save_handler: SaveHandlerInterface, dependency_resolver: DependencyResolverInterface, api_helper: ApiHelper, mod_id: int, max_file_length: float = 4e7, force=False) -> bool:
+def collect_data(logger: logging.Logger, save_handler: SaveHandlerInterface, dependency_resolver: DependencyResolverInterface, api_helper: ApiHelper, mod_id: int, force=False) -> bool:
 	"""
 	:param logger:
 	:param api_helper:
 	:param dependency_resolver:
 	:param save_handler: save handler for storing the collected mod data
 	:param mod_id: CurseForge mod id
-	:param max_file_length: the max file size that is allowed to be downloaded (e.g. 4e7 = 40MB)
 	:param force: force the script to anyways collect the data even if the download count hasn't changed
 	:return:
 	"""
@@ -96,6 +96,7 @@ def collect_data(logger: logging.Logger, save_handler: SaveHandlerInterface, dep
 
 	logger.info("Fetching Project Files Info...")
 	try:
+		time.sleep(0.5)
 		response = api_helper.cf_api.get_mod_files(mod_id)  # TODO: handle pagination
 		response.raise_for_status()
 		files = response.json()["data"]
@@ -109,10 +110,13 @@ def collect_data(logger: logging.Logger, save_handler: SaveHandlerInterface, dep
 		logger.warning("No Project Files Found")
 		return False
 
-	_collect_data_for_project_dependents(logger, save_handler, dependency_resolver, api_helper, project['id'], project['name'], project['slug'], max_file_length)
+	if not _collect_data_for_project_dependents(logger, save_handler, dependency_resolver, api_helper, project['id'], project['name'], project['slug']):
+		logger.warning(f"Failed to find dependents for <{project['name']}>")
+
+	return True
 
 
-def _collect_data_for_project_dependents(logger: logging.Logger, save_handler: SaveHandlerInterface, dependency_resolver: DependencyResolverInterface, api_helper: ApiHelper, project_id: int, project_name: str, project_slug: str, max_file_length: float = 4e7) -> bool:
+def _collect_data_for_project_dependents(logger: logging.Logger, save_handler: SaveHandlerInterface, dependency_resolver: DependencyResolverInterface, api_helper: ApiHelper, project_id: int, project_name: str, project_slug: str) -> bool:
 	dependents, files = dependency_resolver.get_project_dependents(project_id, project_name)
 
 	if len(dependents) > 0:
@@ -120,20 +124,27 @@ def _collect_data_for_project_dependents(logger: logging.Logger, save_handler: S
 		for dependant in dependents:
 			store_project_info(save_handler, dependant)
 
-	for file_identifier in files:
+	if len(files) > 0:
+		file_ids = [ufid.file_id for ufid in files]
+		logger.debug(f"Retrieving data for {len(file_ids)} files that depend on project <{project_name}>")
 		try:
-			response = api_helper.cf_api.get_mod_file(file_identifier.project_id, file_identifier.file_id)
+			time.sleep(0.5)
+			response = api_helper.cf_api.get_files(file_ids)
 			response.raise_for_status()
-			file = response.json()["data"]
+			files = response.json()["data"]
 		except requests.RequestException as error:
-			logger.error(f"Failed to query file info for <{file_identifier}> -> CFCore API: {error}")
-			continue
+			logger.error(f"Failed to query files by id -> CFCore API: {error}")
+			return False
 
-		logger.debug(f"Checking if the file <{file['fileName']}> depends on the project <{project_name}>")
-		dependency = dependency_resolver.get_file_dependency(file_identifier, project_id)
-		if dependency:
-			store_file_info(save_handler, file)
-			store_file_dependency(save_handler, file, dependency)
-		else:
-			logger.warning(f"Skipping file <{file['fileName']}> -> Unable to determine the files dependencies")
-			logger.warning(f"Skipping file <{file['fileName']}> -> File is does not depend on <{project_slug}>")
+		for file in files:
+			logger.debug(f"Checking if the file <{file['fileName']}> depends on the project <{project_name}>")
+			dependency = dependency_resolver.get_file_dependency(FileIdentifier(file['modId'], file['id']), project_id)
+			if dependency:
+				store_file_info(save_handler, file)
+				store_file_dependency(save_handler, file, dependency)
+			else:
+				logger.warning(f"Skipping file <{file['fileName']}> -> Unable to determine the files dependencies")
+				logger.warning(f"Skipping file <{file['fileName']}> -> File is does not depend on <{project_slug}>")
+
+		return True
+	return False
